@@ -25,6 +25,16 @@ var particlesInUse = [];
 var planeVelY = 0;
 
 function resetGame(){
+  if (window.SignatureSystem && window.SignatureSystem.isActive()) {
+    window.SignatureSystem.stop();
+  }
+  if (postGameSummaryOverlay) {
+    postGameSummaryOverlay.remove();
+    postGameSummaryOverlay = null;
+  }
+  postGameTriggered = false;
+  signatureReplayPrepared = false;
+
   game = {speed:0,
           initSpeed:.00035,
           baseSpeed:.00035,
@@ -104,6 +114,9 @@ var HEIGHT, WIDTH,
     mousePos = { x: 0, y: 0 };
 
 var controlModeBtn;
+var postGameSummaryOverlay = null;
+var postGameTriggered = false;
+var signatureReplayPrepared = false;
 
 //INIT THREE JS, SCREEN AND MOUSE EVENTS
 
@@ -188,7 +201,7 @@ function setupControlToggle() {
     position: "fixed",
     top: "16px",
     right: "16px",
-    zIndex: "1200",
+    zIndex: "1300",
     padding: "10px 14px",
     borderRadius: "10px",
     border: "0",
@@ -213,6 +226,88 @@ function handleMouseMove(event) {
 
   mousePos.x = tx;
   mousePos.y = ty;
+}
+
+function showPostGameSummary(score, level) {
+  if (postGameSummaryOverlay) {
+    postGameSummaryOverlay.remove();
+  }
+
+  postGameSummaryOverlay = document.createElement("div");
+  Object.assign(postGameSummaryOverlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "1050",
+    background: "rgba(0, 0, 0, 0.72)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "Arial, sans-serif",
+    color: "#ffffff",
+  });
+
+  var card = document.createElement("div");
+  Object.assign(card.style, {
+    background: "rgba(18, 18, 18, 0.88)",
+    borderRadius: "14px",
+    padding: "28px 36px",
+    textAlign: "center",
+    minWidth: "320px",
+    boxShadow: "0 12px 26px rgba(0,0,0,0.35)",
+  });
+
+  var title = document.createElement("div");
+  title.textContent = "Game Over";
+  title.style.fontSize = "34px";
+  title.style.fontWeight = "700";
+  title.style.marginBottom = "14px";
+
+  var scoreLabel = document.createElement("div");
+  scoreLabel.textContent = "Final score: " + score + " diamonds";
+  scoreLabel.style.fontSize = "22px";
+  scoreLabel.style.marginBottom = "8px";
+
+  var levelLabel = document.createElement("div");
+  levelLabel.textContent = "Level reached: " + level;
+  levelLabel.style.fontSize = "22px";
+
+  var subtitle = document.createElement("div");
+  subtitle.textContent = "Preparing signature mode...";
+  subtitle.style.marginTop = "16px";
+  subtitle.style.opacity = "0.85";
+
+  card.appendChild(title);
+  card.appendChild(scoreLabel);
+  card.appendChild(levelLabel);
+  card.appendChild(subtitle);
+  postGameSummaryOverlay.appendChild(card);
+  document.body.appendChild(postGameSummaryOverlay);
+}
+
+function beginPostGameFlow() {
+  if (postGameTriggered) return;
+  postGameTriggered = true;
+  signatureReplayPrepared = false;
+
+  var finalScore = game.diamondsCollected;
+  var finalLevel = Math.floor(game.level);
+  showPostGameSummary(finalScore, finalLevel);
+  game.status = "postgame_summary";
+
+  setTimeout(function () {
+    if (postGameSummaryOverlay) {
+      postGameSummaryOverlay.remove();
+      postGameSummaryOverlay = null;
+    }
+
+    game.status = "signature";
+    if (window.SignatureSystem) {
+      window.SignatureSystem.start({
+        score: finalScore,
+        level: finalLevel,
+      });
+    }
+  }, 2500);
 }
 
 
@@ -855,6 +950,10 @@ function loop(){
   // Optimization: Clamp deltaTime to prevent huge physics jumps during frame drops
   deltaTime = Math.min(deltaTime, 50);
 
+  if (game.status=="gameover"){
+    beginPostGameFlow();
+  }
+
   if (game.status=="playing"){
 
     // Add energy coins every 100m;
@@ -889,35 +988,35 @@ function loop(){
     game.baseSpeed += (game.targetBaseSpeed - game.baseSpeed) * deltaTime * 0.02;
     game.speed = game.baseSpeed * game.planeSpeed;
 
-  }else if(game.status=="gameover"){
-    game.speed *= .99;
-    airplane.mesh.rotation.z += (-Math.PI/2 - airplane.mesh.rotation.z)*.0002*deltaTime;
-    airplane.mesh.rotation.x += 0.0003*deltaTime;
-    game.planeFallSpeed *= 1.05;
-    airplane.mesh.position.y -= game.planeFallSpeed*deltaTime;
-
-    if (airplane.mesh.position.y <-200){
+  }else if(game.status=="signature"){
+    if (
+      !signatureReplayPrepared &&
+      window.SignatureSystem &&
+      !window.SignatureSystem.isActive()
+    ) {
+      signatureReplayPrepared = true;
       showReplay();
       game.status = "waitingReplay";
-
     }
   }else if (game.status=="waitingReplay"){
 
   }
 
 
-  airplane.propeller.rotation.x +=.2 + game.planeSpeed * deltaTime*.005;
-  sea.mesh.rotation.z += game.speed*deltaTime;//*game.seaRotationSpeed;
+  if (game.status=="playing"){
+    airplane.propeller.rotation.x +=.2 + game.planeSpeed * deltaTime*.005;
+    sea.mesh.rotation.z += game.speed*deltaTime;//*game.seaRotationSpeed;
 
-  if ( sea.mesh.rotation.z > 2*Math.PI)  sea.mesh.rotation.z -= 2*Math.PI;
+    if ( sea.mesh.rotation.z > 2*Math.PI)  sea.mesh.rotation.z -= 2*Math.PI;
 
-  ambientLight.intensity += (.5 - ambientLight.intensity)*deltaTime*0.005;
+    ambientLight.intensity += (.5 - ambientLight.intensity)*deltaTime*0.005;
 
-  coinsHolder.rotateCoins();
-  ennemiesHolder.rotateEnnemies();
+    coinsHolder.rotateCoins();
+    ennemiesHolder.rotateEnnemies();
 
-  sky.moveClouds();
-  sea.moveWaves();
+    sky.moveClouds();
+    sea.moveWaves();
+  }
 
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
