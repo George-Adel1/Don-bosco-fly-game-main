@@ -50,6 +50,9 @@ async function init() {
   if (typeof window.mousePos === "undefined") {
     window.mousePos = { x: 0, y: 0 };
   }
+  if (typeof window.handPointer === "undefined") {
+    window.handPointer = { x: 0.5, y: 0.5, active: false };
+  }
 
   // Shared state from detector -> renderer
   const handState = {
@@ -72,6 +75,7 @@ async function init() {
     const now = performance.now();
     if (window.controlMode === "mouse") {
       handState.hasHand = false;
+      window.handPointer.active = false;
       if ("requestVideoFrameCallback" in video) {
         video.requestVideoFrameCallback(detectFrame);
       } else {
@@ -86,6 +90,7 @@ async function init() {
       const lm = result.landmarks[0];
       const palmY = (lm[0].y + lm[9].y) * 0.5;
       const mappedY = 1 - palmY * 2; // [-1, 1], inverted
+      const indexTip = lm[8];
 
       const dt = Math.max(1, now - handState.lastUpdate);
       const vel = (mappedY - handState.rawY) / dt;
@@ -94,8 +99,12 @@ async function init() {
       handState.velY = vel;
       handState.lastUpdate = now;
       handState.hasHand = true;
+      window.handPointer.x = Math.max(0, Math.min(1, 1 - indexTip.x));
+      window.handPointer.y = Math.max(0, Math.min(1, indexTip.y));
+      window.handPointer.active = true;
     } else {
       handState.hasHand = false;
+      window.handPointer.active = false;
     }
 
     if ("requestVideoFrameCallback" in video) {
