@@ -103,6 +103,8 @@ var scene,
 var HEIGHT, WIDTH,
     mousePos = { x: 0, y: 0 };
 
+var controlModeBtn;
+
 //INIT THREE JS, SCREEN AND MOUSE EVENTS
 
 function createScene() {
@@ -156,6 +158,61 @@ function handleWindowResize() {
   renderer.setSize(WIDTH, HEIGHT);
   camera.aspect = WIDTH / HEIGHT;
   camera.updateProjectionMatrix();
+}
+
+function setControlMode(mode) {
+  var nextMode = (mode === "mouse") ? "mouse" : "hand";
+  window.controlMode = nextMode;
+
+  if (controlModeBtn) {
+    controlModeBtn.textContent = nextMode === "hand"
+      ? "Control: Hand"
+      : "Control: Mouse";
+  }
+}
+
+function toggleControlMode() {
+  setControlMode(window.controlMode === "hand" ? "mouse" : "hand");
+}
+
+function setupControlToggle() {
+  if (!window.controlMode) {
+    window.controlMode = "hand";
+  }
+
+  controlModeBtn = document.createElement("button");
+  controlModeBtn.id = "controlModeToggle";
+  controlModeBtn.type = "button";
+  controlModeBtn.addEventListener("click", toggleControlMode, false);
+  Object.assign(controlModeBtn.style, {
+    position: "fixed",
+    top: "16px",
+    right: "16px",
+    zIndex: "1200",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "0",
+    backgroundColor: "#68c3c0",
+    color: "#ffffff",
+    fontWeight: "700",
+    fontFamily: "inherit",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+  });
+  document.body.appendChild(controlModeBtn);
+  setControlMode(window.controlMode);
+}
+
+function handleMouseMove(event) {
+  if (window.controlMode !== "mouse") {
+    return;
+  }
+
+  var tx = -1 + (event.clientX / WIDTH) * 2;
+  var ty = 1 - (event.clientY / HEIGHT) * 2;
+
+  mousePos.x = tx;
+  mousePos.y = ty;
 }
 
 
@@ -978,6 +1035,9 @@ function init(event){
   createCoins();
   createEnnemies();
   createParticles();
+  setupControlToggle();
+
+  document.addEventListener('mousemove', handleMouseMove, false);
 
   document.addEventListener('click', function() {
     if (game.status == "waitingReplay"){

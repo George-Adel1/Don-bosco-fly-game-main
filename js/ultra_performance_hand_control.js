@@ -70,6 +70,16 @@ async function init() {
   // Detection loop: runs as soon as new video frames arrive.
   function detectFrame() {
     const now = performance.now();
+    if (window.controlMode === "mouse") {
+      handState.hasHand = false;
+      if ("requestVideoFrameCallback" in video) {
+        video.requestVideoFrameCallback(detectFrame);
+      } else {
+        requestAnimationFrame(detectFrame);
+      }
+      return;
+    }
+
     const result = landmarker.detectForVideo(video, now);
 
     if (result.landmarks && result.landmarks.length > 0) {
@@ -108,6 +118,7 @@ async function init() {
   let smoothY = 0;
 
   function renderLoop(now) {
+    video.style.opacity = window.controlMode === "mouse" ? "0.35" : "1";
     accumulator += now - lastTick;
     lastTick = now;
 
